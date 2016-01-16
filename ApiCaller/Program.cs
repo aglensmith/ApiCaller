@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Web;
-using System.Web.Configuration;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Configuration;
@@ -27,10 +24,6 @@ namespace ApiCaller
             public string url { get; set; }
             public string friends_count { get; set; }
             public string screen_name { get; set; }
-
-
-
-
         }
 
         public class FacebookResponse
@@ -50,36 +43,22 @@ namespace ApiCaller
             List<string> candidates = new List<string>();
             candidates.Add("25073877");
             candidates.Add("15745368");
-            TwitterResponse resp = CallTwitterAsync(candidates).Result;
-            
+            var resp = CallTwitterAsync(candidates).Result;
+            Console.WriteLine(resp[0].followers_count);
+            Console.WriteLine(resp[1].followers_count);       
         }
 
-        static List<TwitterResponse> CallTwitter(List<string> screenNames)
-        {
-            List<TwitterResponse> twitterResponses = new List<TwitterResponse>();
-
-            foreach (string screenName in screenNames)
-            {
-                //TwitterResponse response = CallTwitterAsync(screenName).Result;
-                //twitterResponses.Add(response);
-            }
-
-            return twitterResponses;
-        }
-
-        static async Task<TwitterResponse> CallTwitterAsync(List<string> twitterIDs)
+        static async Task<List<TwitterResponse>> CallTwitterAsync(List<string> twitterIDs)
         {
 
             string IDs = string.Join(",", twitterIDs);
 
             using (var client = new HttpClient())
             {
-
-
                 string token = ConfigurationManager.AppSettings["TwitterBearer"];
                 string bearerToken = "Bearer " + token;
      
-                //TryAddWithoutValidation skips validation that can throw error false-posititve
+                //TryAdd... skips validation that can throw error false-posititve
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", bearerToken);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "polagora");
 
@@ -87,18 +66,10 @@ namespace ApiCaller
                 string uri = "https://api.twitter.com/1.1/users/lookup.json?user_id=";
                 var response = await client.GetAsync(uri + IDs);
                 var responseContent = await response.Content.ReadAsStringAsync();
-
-                Console.WriteLine(IDs);
-               
-                Console.WriteLine(responseContent);
                
                 //Deserialize into list of response objects
                 JavaScriptSerializer ser = new JavaScriptSerializer();
-                var TwitterResponse = ser.Deserialize<List<TwitterResponse>>(responseContent);
-                Console.WriteLine("users:");
-                Console.WriteLine(TwitterResponse[0].followers_count);
-                //return TwitterResponse;
-                return null;
+                return ser.Deserialize<List<TwitterResponse>>(responseContent);
             }
         }
 
