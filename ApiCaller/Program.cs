@@ -15,9 +15,28 @@ namespace ApiCaller
     {
         public class TwitterResponse
         {
+            //For getting bearer -- Make seperate Response Object?
             public string token_type { get; set; }
             public string access_token { get; set; }
+
+            //Twitter Data
+            public string name { get; set; }
             public string followers_count { get; set; }
+            public string created_at { get; set; }
+            public string profile_image_url { get; set; }
+            public string url { get; set; }
+            public string friends_count { get; set; }
+            public string screen_name { get; set; }
+
+
+
+
+        }
+
+        public class FacebookResponse
+        {
+            public string likes { get; set; }
+            public string id { get; set; }
         }
 
         public static string Base64Encode(string stringText)
@@ -28,41 +47,35 @@ namespace ApiCaller
 
         public static void Main(string[] args)
         {
-
-            //For loop that iteratres over list of usernames?
-            // TwitterResponse rubio_response = GetTwitterDataAsync("marcorubio").Result;
-            //  Console.WriteLine(rubio_response.followers_count);
-
-            List<string> screenNames = new List<string>();
-            screenNames.Add("marcorubio");
-            screenNames.Add("tedcruz");
-
-            string bearerToken = ConfigurationManager.AppSettings["TwitterBearer"];
-
-            List<TwitterResponse> twitterResponse = CallTwitter(screenNames, bearerToken);
-
-            foreach(TwitterResponse response in twitterResponse)
-            {
-                Console.WriteLine(response.followers_count);
-            }
+            List<string> candidates = new List<string>();
+            candidates.Add("25073877");
+            candidates.Add("15745368");
+            TwitterResponse resp = CallTwitterAsync(candidates).Result;
+            
         }
-        static List<TwitterResponse> CallTwitter(List<string> screenNames, string beaerToken)
+
+        static List<TwitterResponse> CallTwitter(List<string> screenNames)
         {
             List<TwitterResponse> twitterResponses = new List<TwitterResponse>();
 
             foreach (string screenName in screenNames)
             {
-                TwitterResponse response = CallTwitterAsync(screenName).Result;
-                twitterResponses.Add(response);
+                //TwitterResponse response = CallTwitterAsync(screenName).Result;
+                //twitterResponses.Add(response);
             }
 
             return twitterResponses;
         }
-        static async Task<TwitterResponse> CallTwitterAsync(string screen_name)
+
+        static async Task<TwitterResponse> CallTwitterAsync(List<string> twitterIDs)
         {
-     
+
+            string IDs = string.Join(",", twitterIDs);
+
             using (var client = new HttpClient())
             {
+
+
                 string token = ConfigurationManager.AppSettings["TwitterBearer"];
                 string bearerToken = "Bearer " + token;
      
@@ -71,17 +84,21 @@ namespace ApiCaller
                 client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "polagora");
 
                 //GET Request
-                string uri = "https://api.twitter.com/1.1/users/show.json?screen_name=";
-                var response = await client.GetAsync(uri + screen_name);
+                string uri = "https://api.twitter.com/1.1/users/lookup.json?user_id=";
+                var response = await client.GetAsync(uri + IDs);
                 var responseContent = await response.Content.ReadAsStringAsync();
 
-                //Deserialize into response object
-                JavaScriptSerializer ser = new JavaScriptSerializer();
-                TwitterResponse TwitterResponse = ser.Deserialize<TwitterResponse>(responseContent);
-
+                Console.WriteLine(IDs);
+               
                 Console.WriteLine(responseContent);
-              
-                return TwitterResponse;
+               
+                //Deserialize into list of response objects
+                JavaScriptSerializer ser = new JavaScriptSerializer();
+                var TwitterResponse = ser.Deserialize<List<TwitterResponse>>(responseContent);
+                Console.WriteLine("users:");
+                Console.WriteLine(TwitterResponse[0].followers_count);
+                //return TwitterResponse;
+                return null;
             }
         }
 
@@ -99,39 +116,61 @@ namespace ApiCaller
             return response.access_token;
         }
 
-        static async Task<string> GetBearerAsync(string CONSUMER_KEY, string CONSUMER_SECRET)
+        static async Task<FacebookResponse> CallFacebookAsync(string facebookID)
         {
             using (var client = new HttpClient())
             {
+                string uri = "https://graph.facebook.com/v2.5/";
+                string id = facebookID;
+                string param = "?fields=likes&access_token=";
+                string token = ConfigurationManager.AppSettings["FacebookToken"];
+                string url = uri + id + param + token;
 
-                //keys
-                string key = "DwSw7pBWrpLqCeSxWhMmAwezP";
-                string secret = "or6CkRutVNAPD9WWBcZCC2ZSjaCxg4YqdOkIrXbmPtmpUU5262";
+                //GET
+                var response = await client.GetAsync(url);
+                var payload = await response.Content.ReadAsStringAsync();
+
+                //Deserialize
+                JavaScriptSerializer ser = new JavaScriptSerializer();
+                FacebookResponse FacebookResponse = ser.Deserialize<FacebookResponse>(payload);
+
+                return FacebookResponse;
+            }
+        }
+
+        static async Task<string> GetBearerAsync(string ApiKey, string ApiSecret)
+        {
+            using (var client = new HttpClient())
+            {
+		        //keys
+                string key = ConfigurationManager.AppSettings["TwitterKey"];
+                string secret = ConfigurationManager.AppSettings["TwitterSecret"];
+		
+		        string uri = "https://api.twitter.com/oauth2/token";
+		        string contentType = "application/x-www-form-urlencoded;charset=UTF-8";
 
                 //URL encoding
                 string keyEncoded = HttpUtility.UrlEncode(key);
                 string secretEncoded = HttpUtility.UrlEncode(secret);
 
-                //Base64 Encoded Token Credentials
-                string tokenCredentials = Base64Encode(keyEncoded + ":" + secretEncoded);
+                //Base64 Encode Token Credentials
+                string keySecretEncoded = Base64Encode(keyEncoded + ":" + secretEncoded);
+		        string credentials = ("Basic " + keySecretEncoded);
 
-                //Set headers, skip stupid validation
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Basic " + tokenCredentials);
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
+                //Set headers, skip validation
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", credentials);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", contentType);
                 
                 //Post Body
                 var values = new Dictionary<string, string> { { "grant_type", "client_credentials" } };
-                var content = new FormUrlEncodedContent(values);
+                var body = new FormUrlEncodedContent(values);
 
                 //POST
-                var response = await client.PostAsync("https://api.twitter.com/oauth2/token", content);
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var response = await client.PostAsync(uri, body);
+                var content = await response.Content.ReadAsStringAsync();
                 
-                return responseContent;
-
+                return content;
             }
-
-            
         }
     }
 }
