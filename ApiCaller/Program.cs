@@ -48,7 +48,7 @@ namespace ApiCaller
             Console.WriteLine(resp[1].followers_count);       
         }
 
-        static async Task<List<TwitterResponse>> CallTwitterAsync(List<string> twitterIDs)
+        public static async Task<List<TwitterResponse>> CallTwitterAsync(List<string> twitterIDs)
         {
 
             string IDs = string.Join(",", twitterIDs);
